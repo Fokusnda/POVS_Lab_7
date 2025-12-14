@@ -4,8 +4,6 @@
 //
 #define IDR_MENU1                       101
 #define ID_FILE_EXIT                    40001
-#define BTN_ID_MAX						19999
-#define RBTN_ID_MAX						29999
 
 // Next default values for new objects
 // 

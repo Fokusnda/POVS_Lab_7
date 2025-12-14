@@ -10,13 +10,14 @@
 #define SCLASS "a;eohgqeruiopugoqeig"
 #define WINDOW_WIDTH 0.2
 #define WINDOW_HEIGHT 0.5
-#define STEP 30
+#define STEP 1
 #define BTN_ID 10000
 #define RBTN_ID 20000
-#define N 160
+#define N 1600
 #define M 3
 #define BTN_WIDTH 120
 #define BTN_HEIGHT 30
+#define VISIBLE_BTN_COUNT 100
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -68,29 +69,43 @@ int WINAPI  WinMain(
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    static HWND btns[VISIBLE_BTN_COUNT];
+	static HWND rbtns[VISIBLE_BTN_COUNT];
+    static int startIndex = 0;
+    static int selectedIndex = -1;
+
     switch (message) {
     case WM_CREATE: {
-        std::string btn_name;
-        std::string rbtn_name;
-        for (int i = 0; i < N; i++)
-        {
-            btn_name = "Кнопка " + std::to_string(i + 1);
-            CreateWindow("BUTTON", btn_name.c_str(),
-                WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-                0, 0 + i * BTN_HEIGHT, BTN_WIDTH, BTN_HEIGHT,
+        for (int i = 0; i < VISIBLE_BTN_COUNT; i++){
+            CreateWindow("BUTTON", "",
+                WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+                0, i * BTN_HEIGHT, BTN_WIDTH, BTN_HEIGHT,
                 hWnd, (HMENU)(INT_PTR)(BTN_ID + i),
                 (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
 
-            rbtn_name = "Радио " + std::to_string(i + 1);
-            CreateWindow("BUTTON", rbtn_name.c_str(),
+            CreateWindow("BUTTON", "",
                 WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                BTN_WIDTH + 20, 0 + i* BTN_HEIGHT, BTN_WIDTH, BTN_HEIGHT,
+                BTN_WIDTH + 20, i* BTN_HEIGHT, BTN_WIDTH, BTN_HEIGHT,
                 hWnd, (HMENU)(INT_PTR)(RBTN_ID + i),
                 (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
         }
 
-        SendDlgItemMessage(hWnd, BTN_ID + M-1, BM_CLICK, TRUE, 0);
-        SendDlgItemMessage(hWnd, RBTN_ID + M - 1, BM_SETCHECK, BST_CHECKED, 0);
+		selectedIndex = M - 1;
+        std::string btn_name;
+        std::string rbtn_name;
+
+        for (int i = 0; i < VISIBLE_BTN_COUNT; i++) {
+            btn_name = "Кнопка " + std::to_string(i + startIndex + 1);
+            rbtn_name = "Радио " + std::to_string(i + startIndex + 1);
+            SetWindowText(btns[i] = GetDlgItem(hWnd, BTN_ID + i), btn_name.c_str());
+            SetWindowText(rbtns[i] = GetDlgItem(hWnd, RBTN_ID + i), rbtn_name.c_str());
+
+			SetWindowLongPtr(btns[i], GWLP_ID, BTN_ID + i + startIndex);
+			SetWindowLongPtr(rbtns[i], GWLP_ID, RBTN_ID + i + startIndex);
+
+            SendMessage(btns[i], BM_SETSTATE, (selectedIndex == i + startIndex), 0);
+			SendMessage(rbtns[i], BM_SETCHECK, (selectedIndex == i + startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
+		}
 
         return 0;
     }
@@ -102,39 +117,40 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         }
         UINT id = LOWORD(wParam);
-        if (id >= BTN_ID && id < BTN_ID_MAX) {
-            for (int i = 0; i < N; i++)
-            {
-                SendDlgItemMessage(hWnd, RBTN_ID + i, BM_SETCHECK, BST_UNCHECKED, 0);
-                SendDlgItemMessage(hWnd, BTN_ID + i, BM_SETSTATE, FALSE, 0);
-            }
-            SendDlgItemMessage(hWnd, RBTN_ID + id - BTN_ID, BM_SETCHECK, BST_CHECKED, 0);
-            SendDlgItemMessage(hWnd, id, BM_SETSTATE, TRUE, 0);
-            return 0;
+        if (id >= BTN_ID && id < BTN_ID + N) {
+			selectedIndex = id - BTN_ID;
         }
-        if (id >= RBTN_ID && id < RBTN_ID_MAX){
-            for (int i = 0; i < N; i++)
-            {
-                SendDlgItemMessage(hWnd, BTN_ID + i, BM_SETSTATE, FALSE, 0);
-            }
-            SendDlgItemMessage(hWnd, BTN_ID + id - RBTN_ID, BM_SETSTATE, TRUE, 0);
-            return 0;
+        if (id >= RBTN_ID && id < RBTN_ID + N){
+			selectedIndex = id - RBTN_ID;
+        }
+
+        for (int i = 0; i < VISIBLE_BTN_COUNT; i++) {
+			SendMessage(btns[i], BM_SETSTATE, (selectedIndex == i + startIndex), 0);
+			SendMessage(rbtns[i], BM_SETCHECK, (selectedIndex == i + startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
         }
         return 0;
     }
     case WM_SIZE: {
-        RECT clientRect;
-        GetClientRect(hWnd, &clientRect);
+        RECT cleintRect;
+		GetClientRect(hWnd, &cleintRect);
+
+		int visibleBtn = (cleintRect.bottom - cleintRect.top) / BTN_HEIGHT;
+		if (visibleBtn < 1) { visibleBtn = 1; }
+		if (visibleBtn > VISIBLE_BTN_COUNT) { visibleBtn = VISIBLE_BTN_COUNT; }
+		if (visibleBtn > N) { visibleBtn = N; }
+
+        if (startIndex > N - visibleBtn) { startIndex = N - visibleBtn; }
+		if (startIndex < 0) { startIndex = 0; }
 
         SCROLLINFO vScroll = { 0 };
         vScroll.cbSize = sizeof(SCROLLINFO);
-        vScroll.fMask = SIF_RANGE;
+        vScroll.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
         vScroll.nMin = 0;
-        vScroll.nMax = (N * BTN_HEIGHT) - (clientRect.bottom - clientRect.top);
-        vScroll.nPage = clientRect.bottom - clientRect.top;
+        vScroll.nMax = N - 1;
+        vScroll.nPage = visibleBtn;
+		vScroll.nPos = startIndex;
         SetScrollInfo(hWnd, SB_VERT, &vScroll, TRUE);
 
-        InvalidateRect(hWnd, NULL, TRUE);
         return 0;
     }
     case WM_VSCROLL: {
@@ -142,7 +158,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         vScroll.cbSize = sizeof(SCROLLINFO);
         vScroll.fMask = SIF_ALL;
         GetScrollInfo(hWnd, SB_VERT, &vScroll);
-        int yPos = vScroll.nPos;
         int shift = 0;
 
         switch (LOWORD(wParam)) {
@@ -172,11 +187,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         }
 
-        vScroll.fMask = SIF_POS;
+        if (vScroll.nPos < vScroll.nMin) { vScroll.nPos = vScroll.nMin; }
+		if (vScroll.nPos > vScroll.nMax) { vScroll.nPos = vScroll.nMax; }
+
         SetScrollInfo(hWnd, SB_VERT, &vScroll, TRUE);
 
-        ScrollWindow(hWnd, 0, yPos - vScroll.nPos, NULL, NULL);
-        UpdateWindow(hWnd);
+        startIndex = vScroll.nPos;
+		int visibleBtn = vScroll.nPage;
+        std::string btn_name;
+        std::string rbtn_name;
+        for (int i = 0; i < VISIBLE_BTN_COUNT; i++) {
+            if (i >= visibleBtn || i + startIndex >= N)
+            {
+                ShowWindow(btns[i], SW_HIDE);
+                ShowWindow(rbtns[i], SW_HIDE);
+                continue;
+            }
+            ShowWindow(btns[i], SW_SHOW);
+            ShowWindow(rbtns[i], SW_SHOW);
+
+			btn_name = "Кнопка " + std::to_string(i + startIndex + 1);
+            rbtn_name = "Радио " + std::to_string(i + startIndex + 1);
+            SetWindowText(btns[i], btn_name.c_str());
+            SetWindowText(rbtns[i], rbtn_name.c_str());
+
+			SetWindowLongPtr(btns[i], GWLP_ID, BTN_ID + i + startIndex);
+			SetWindowLongPtr(rbtns[i], GWLP_ID, RBTN_ID + i + startIndex);
+
+			SendMessage(btns[i], BM_SETSTATE, (selectedIndex == i + startIndex), 0);
+			SendMessage(rbtns[i], BM_SETCHECK, (selectedIndex == i + startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
+        }
 
         return 0;
     }
