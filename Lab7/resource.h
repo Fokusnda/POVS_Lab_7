@@ -3,7 +3,9 @@
 // Используется Lab7.rc
 //
 #define IDR_MENU1                       101
-#define ID_FILE_EXIT                    40001
+#define ID_FILE_EXIT                    10001
+#define ID_BTN							20000
+#define ID_RBTN							40000
 
 // Next default values for new objects
 // 

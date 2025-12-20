@@ -11,14 +11,18 @@
 #define WINDOW_WIDTH 0.2
 #define WINDOW_HEIGHT 0.5
 
-#define STEP 1
-#define BTN_ID 10000
-#define RBTN_ID 20000
-#define N 1600
+#define N 20000
 #define M 3
-#define BTN_WIDTH 120
+#define BTN_WIDTH 100
 #define BTN_HEIGHT 30
-#define VISIBLE_BTN_COUNT 50
+
+struct AppState {
+    HWND* hBtns;
+    HWND* hRbtns;
+    int startIndex;
+    int selectedIndex;
+    int rBtnCount;
+};
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -70,39 +74,144 @@ int WINAPI  WinMain(
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    static HWND btns[VISIBLE_BTN_COUNT];
-	static HWND rbtns[VISIBLE_BTN_COUNT];
-    static int startIndex = 0;
-    static int selectedIndex = -1;
-
     switch (message) {
     case WM_CREATE: {
-        std::string btn_name;
-        std::string rbtn_name;
-        for (int i = 0; i < VISIBLE_BTN_COUNT; i++){
-            btn_name = "Кнопка " + std::to_string(i + 1);
-            rbtn_name = "Радио " + std::to_string(i + 1);
+        AppState* state = new AppState;
+		state->startIndex = 0;
+		state->selectedIndex = M - 1;
 
-            CreateWindow("BUTTON", btn_name.c_str(),
-                WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+        RECT rc;
+		GetClientRect(hWnd, &rc);
+        state->rBtnCount = GetSystemMetrics(SM_CYSCREEN) / BTN_HEIGHT;
+
+        state->hBtns = new HWND[N];
+        state->hRbtns = new HWND[N];
+
+        std::string btnText;
+        std::string rbtnText;
+
+        for (int i = 0; i < state->rBtnCount; i++) {
+			btnText = "Кнопка " + std::to_string(i + 1);
+            rbtnText = "Радио " + std::to_string(i + 1);
+
+            state->hBtns[i] = CreateWindow("BUTTON", btnText.c_str(),
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                 0, i * BTN_HEIGHT, BTN_WIDTH, BTN_HEIGHT,
-                hWnd, (HMENU)(INT_PTR)(BTN_ID + i),
+                hWnd, (HMENU)(INT_PTR)(ID_BTN + i),
                 (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
 
-            CreateWindow("BUTTON", rbtn_name.c_str(),
+            state->hRbtns[i] = CreateWindow("BUTTON", rbtnText.c_str(),
                 WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                BTN_WIDTH + 20, i* BTN_HEIGHT, BTN_WIDTH, BTN_HEIGHT,
-                hWnd, (HMENU)(INT_PTR)(RBTN_ID + i),
+                10 + BTN_WIDTH, i * BTN_HEIGHT, BTN_WIDTH, BTN_HEIGHT,
+                hWnd, (HMENU)(INT_PTR)(ID_BTN + i),
                 (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
-
-            btns[i] = GetDlgItem(hWnd, BTN_ID + i);
-            rbtns[i] = GetDlgItem(hWnd, RBTN_ID + i);
         }
 
-        selectedIndex = M - 1;
-        SendMessage(btns[selectedIndex], BM_SETSTATE, TRUE, 0);
-        SendMessage(rbtns[selectedIndex], BM_SETCHECK, BST_CHECKED, 0);
+        SendMessage(state->hBtns[state->selectedIndex], BM_SETSTATE, TRUE, 0);
+		SendMessage(state->hRbtns[state->selectedIndex], BM_SETCHECK, BST_CHECKED, 0);
 
+		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)state);
+
+        return 0;
+    }
+    case WM_SIZE: {
+		AppState* state = (AppState*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+
+        RECT clientRect;
+        GetClientRect(hWnd, &clientRect);
+
+        int visibleBtn = clientRect.bottom / BTN_HEIGHT;
+		if (visibleBtn < 1) { visibleBtn = 1; }
+		else if (visibleBtn > N) { visibleBtn = N; }
+
+        if (state->startIndex > N - visibleBtn) { state->startIndex = N - visibleBtn; }
+
+        SCROLLINFO vScroll = { 0 };
+        vScroll.cbSize = sizeof(SCROLLINFO);
+        vScroll.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        vScroll.nMin = 0;
+        vScroll.nMax = N - 1;
+        vScroll.nPage = visibleBtn;
+        vScroll.nPos = state->startIndex;
+        SetScrollInfo(hWnd, SB_VERT, &vScroll, TRUE);
+
+        std::string btnText;
+        std::string rbtnText;
+        for (int i = 0; i < state->rBtnCount; i++) {
+            if (i >= visibleBtn || i + state->startIndex >= N)
+            {
+                ShowWindow(state->hBtns[i], SW_HIDE);
+                ShowWindow(state->hRbtns[i], SW_HIDE);
+                continue;
+            }
+            ShowWindow(state->hBtns[i], SW_SHOW);
+            ShowWindow(state->hRbtns[i], SW_SHOW);
+
+            btnText = "Кнопка " + std::to_string(i + state->startIndex + 1);
+            rbtnText = "Радио " + std::to_string(i + state->startIndex + 1);
+            SetWindowText(state->hBtns[i], btnText.c_str());
+            SetWindowText(state->hRbtns[i], rbtnText.c_str());
+
+            SetWindowLongPtr(state->hBtns[i], GWLP_ID, ID_BTN + i + state->startIndex);
+            SetWindowLongPtr(state->hRbtns[i], GWLP_ID, ID_RBTN + i + state->startIndex);
+
+            SendMessage(state->hBtns[i], BM_SETSTATE, (state->selectedIndex == i + state->startIndex), 0);
+            SendMessage(state->hRbtns[i], BM_SETCHECK, (state->selectedIndex == i + state->startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
+        }
+        return 0;
+    }
+    case WM_VSCROLL: {
+        AppState* state = (AppState*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+
+        SCROLLINFO vScroll = { sizeof(vScroll) };
+        vScroll.fMask = SIF_ALL;
+        GetScrollInfo(hWnd, SB_VERT, &vScroll);
+
+        int newPos = state->startIndex;
+
+        switch (LOWORD(wParam)) {
+        case SB_LINEUP:     newPos = state->startIndex - 1; break;
+        case SB_LINEDOWN:   newPos = state->startIndex + 1; break;
+        case SB_PAGEUP:     newPos = state->startIndex - state->rBtnCount; break;
+        case SB_PAGEDOWN:   newPos = state->startIndex + state->rBtnCount; break;
+        case SB_THUMBTRACK: newPos = vScroll.nTrackPos; break;
+        }
+
+        if (newPos < 0) { newPos = 0; }
+        if (newPos > (int)(N - vScroll.nPage)) { newPos = N - vScroll.nPage; }
+
+        if (newPos == state->startIndex) { break; }
+
+        state->startIndex = newPos;
+
+        vScroll.fMask = SIF_POS;
+        vScroll.nPos = state->startIndex;
+        SetScrollInfo(hWnd, SB_VERT, &vScroll, TRUE);
+
+        int visibleBtn = vScroll.nPage;
+        std::string btnText;
+        std::string rbtnText;
+        for (int i = 0; i < state->rBtnCount; i++) {
+            if (i >= visibleBtn || i + state->startIndex >= N) {
+                ShowWindow(state->hBtns[i], SW_HIDE);
+                ShowWindow(state->hRbtns[i], SW_HIDE);
+                continue;
+            }
+
+            btnText = "Кнопка " + std::to_string(i + state->startIndex + 1);
+            rbtnText = "Радио " + std::to_string(i + state->startIndex + 1);
+            SetWindowText(state->hBtns[i], btnText.c_str());
+            SetWindowText(state->hRbtns[i], rbtnText.c_str());
+
+            SetWindowLongPtr(state->hBtns[i], GWLP_ID, ID_BTN + i + state->startIndex);
+            SetWindowLongPtr(state->hRbtns[i], GWLP_ID, ID_RBTN + i + state->startIndex);
+
+            SendMessage(state->hBtns[i], BM_SETSTATE, (state->selectedIndex == i + state->startIndex), 0);
+            SendMessage(state->hRbtns[i], BM_SETCHECK, (state->selectedIndex == i + state->startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
+
+            ShowWindow(state->hBtns[i], SW_SHOW);
+            ShowWindow(state->hRbtns[i], SW_SHOW);
+        }
         return 0;
     }
     case WM_COMMAND: {
@@ -112,121 +221,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             return 0;
         }
         }
+        AppState* state = (AppState*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
         UINT id = LOWORD(wParam);
-        if (id >= BTN_ID && id < BTN_ID + N) {
-			selectedIndex = id - BTN_ID;
+        if (id >= ID_BTN && id < ID_BTN + N) {
+            state->selectedIndex = id - ID_BTN;
         }
-        if (id >= RBTN_ID && id < RBTN_ID + N){
-			selectedIndex = id - RBTN_ID;
-        }
-
-        for (int i = 0; i < VISIBLE_BTN_COUNT; i++) {
-			SendMessage(btns[i], BM_SETSTATE, (selectedIndex == i + startIndex), 0);
-			SendMessage(rbtns[i], BM_SETCHECK, (selectedIndex == i + startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
-        }
-        return 0;
-    }
-    case WM_SIZE: {
-        RECT cleintRect;
-		GetClientRect(hWnd, &cleintRect);
-
-		int visibleBtn = (cleintRect.bottom - cleintRect.top) / BTN_HEIGHT;
-        if (visibleBtn < 1) { visibleBtn = 1; break; }
-        else if (visibleBtn > VISIBLE_BTN_COUNT) { visibleBtn = VISIBLE_BTN_COUNT; break; }
-        else if (visibleBtn > N) { visibleBtn = N; break; }
-
-        if (startIndex > N - visibleBtn) { startIndex = N - visibleBtn; }
-
-        SCROLLINFO vScroll = { 0 };
-        vScroll.cbSize = sizeof(SCROLLINFO);
-        vScroll.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-        vScroll.nMin = 0;
-        vScroll.nMax = N - 1;
-        vScroll.nPage = visibleBtn;
-		vScroll.nPos = startIndex;
-        SetScrollInfo(hWnd, SB_VERT, &vScroll, TRUE);
-
-        std::string btn_name;
-        std::string rbtn_name;
-        for (int i = 0; i < VISIBLE_BTN_COUNT; i++) {
-            if (i >= visibleBtn || i + startIndex >= N)
-            {
-                ShowWindow(btns[i], SW_HIDE);
-                ShowWindow(rbtns[i], SW_HIDE);
-                continue;
-            }
-            ShowWindow(btns[i], SW_SHOW);
-            ShowWindow(rbtns[i], SW_SHOW);
-
-            btn_name = "Кнопка " + std::to_string(i + startIndex + 1);
-            rbtn_name = "Радио " + std::to_string(i + startIndex + 1);
-            SetWindowText(btns[i], btn_name.c_str());
-            SetWindowText(rbtns[i], rbtn_name.c_str());
-
-            SetWindowLongPtr(btns[i], GWLP_ID, BTN_ID + i + startIndex);
-            SetWindowLongPtr(rbtns[i], GWLP_ID, RBTN_ID + i + startIndex);
-
-            SendMessage(btns[i], BM_SETSTATE, (selectedIndex == i + startIndex), 0);
-            SendMessage(rbtns[i], BM_SETCHECK, (selectedIndex == i + startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
-        }
-        return 0;
-    }
-    case WM_VSCROLL: {
-        SCROLLINFO vScroll = { 0 };
-        vScroll.cbSize = sizeof(SCROLLINFO);
-        vScroll.fMask = SIF_ALL;
-        GetScrollInfo(hWnd, SB_VERT, &vScroll);
-
-        switch (LOWORD(wParam)) {
-        case SB_LINEDOWN:
-        case SB_PAGEDOWN: {
-            vScroll.nPos += STEP;
-            break;
-        }
-        case SB_LINEUP:
-        case SB_PAGEUP: {
-            vScroll.nPos -= STEP;
-            break;
-        }
-        case SB_THUMBTRACK: {
-            vScroll.nPos = vScroll.nTrackPos;
-            break;
-        }
+        if (id >= ID_RBTN && id < ID_RBTN + N) {
+            state->selectedIndex = id - ID_RBTN;
         }
 
-        if (vScroll.nPos < vScroll.nMin) { vScroll.nPos = vScroll.nMin; }
-
-        SetScrollInfo(hWnd, SB_VERT, &vScroll, TRUE);
-
-        startIndex = vScroll.nPos;
-		int visibleBtn = vScroll.nPage;
-        std::string btn_name;
-        std::string rbtn_name;
-        for (int i = 0; i < VISIBLE_BTN_COUNT; i++) {
-            if (i >= visibleBtn || i + startIndex >= N)
-            {
-                ShowWindow(btns[i], SW_HIDE);
-                ShowWindow(rbtns[i], SW_HIDE);
-                continue;
-            }
-            ShowWindow(btns[i], SW_SHOW);
-            ShowWindow(rbtns[i], SW_SHOW);
-
-			btn_name = "Кнопка " + std::to_string(i + startIndex + 1);
-            rbtn_name = "Радио " + std::to_string(i + startIndex + 1);
-            SetWindowText(btns[i], btn_name.c_str());
-            SetWindowText(rbtns[i], rbtn_name.c_str());
-
-			SetWindowLongPtr(btns[i], GWLP_ID, BTN_ID + i + startIndex);
-			SetWindowLongPtr(rbtns[i], GWLP_ID, RBTN_ID + i + startIndex);
-
-			SendMessage(btns[i], BM_SETSTATE, (selectedIndex == i + startIndex), 0);
-			SendMessage(rbtns[i], BM_SETCHECK, (selectedIndex == i + startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
+        for (int i = 0; i < state->rBtnCount; i++) {
+            SendMessage(state->hBtns[i], BM_SETSTATE, (state->selectedIndex == i + state->startIndex), 0);
+            SendMessage(state->hRbtns[i], BM_SETCHECK, (state->selectedIndex == i + state->startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
         }
-
         return 0;
     }
     case WM_DESTROY:
+        AppState* state = (AppState*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+
+        delete[] state->hBtns;
+        delete[] state->hRbtns;
+        delete state;
+        SetWindowLongPtr(hWnd, GWLP_USERDATA, 0);
+
         ::PostQuitMessage(0);
         return 0;
     }
