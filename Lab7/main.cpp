@@ -102,7 +102,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             state->hRbtns[i] = CreateWindow("BUTTON", rbtnText.c_str(),
                 WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                10 + BTN_WIDTH, i * BTN_HEIGHT, BTN_WIDTH, BTN_HEIGHT,
+                10 + BTN_WIDTH, i * BTN_HEIGHT, BTN_WIDTH + 10, BTN_HEIGHT,
                 hWnd, (HMENU)(INT_PTR)(ID_BTN + i),
                 (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
         }
@@ -180,8 +180,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         if (newPos < 0) { newPos = 0; }
         if (newPos > (int)(N - vScroll.nPage)) { newPos = N - vScroll.nPage; }
 
-        if (newPos == state->startIndex) { break; }
-
         state->startIndex = newPos;
 
         vScroll.fMask = SIF_POS;
@@ -197,6 +195,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 ShowWindow(state->hRbtns[i], SW_HIDE);
                 continue;
             }
+            ShowWindow(state->hBtns[i], SW_SHOW);
+            ShowWindow(state->hRbtns[i], SW_SHOW);
 
             btnText = "Кнопка " + std::to_string(i + state->startIndex + 1);
             rbtnText = "Радио " + std::to_string(i + state->startIndex + 1);
@@ -208,9 +208,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             SendMessage(state->hBtns[i], BM_SETSTATE, (state->selectedIndex == i + state->startIndex), 0);
             SendMessage(state->hRbtns[i], BM_SETCHECK, (state->selectedIndex == i + state->startIndex) ? BST_CHECKED : BST_UNCHECKED, 0);
-
-            ShowWindow(state->hBtns[i], SW_SHOW);
-            ShowWindow(state->hRbtns[i], SW_SHOW);
         }
         return 0;
     }
